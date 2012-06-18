@@ -1,4 +1,6 @@
 require 'rexml/document'
+require 'base64'
+require 'stringio'
 
 #
 # Prawn::Svg::Parser is responsible for parsing an SVG file and converting it into a tree of
@@ -57,6 +59,7 @@ class Prawn::Svg::Parser
     "circle"    => %w(r),
     "ellipse"   => %w(rx ry),
     "rect"      => %w(width height),
+    "image"     => %w(xlink:href),
     "path"      => %w(d)    
   }
   
@@ -65,11 +68,11 @@ class Prawn::Svg::Parser
 
   def parse_element(element)
     attrs = element.attributes
-
+        
     if required_attributes = REQUIRED_ATTRIBUTES[element.name]
       return unless check_attrs_present(element, required_attributes)
     end
-        
+ 
     case element.name
     when *CONTAINER_TAGS
       element.each_child_element do |child|
@@ -144,6 +147,16 @@ class Prawn::Svg::Parser
     when 'font-face'
       # not supported
       do_not_append_calls = true
+
+    when 'image'
+      # This is only for base64 images
+      base64_string = attrs['xlink:href']
+
+      if base64_string.include? 'base64'
+        base64 = Base64.decode64(base64_string.split('base64,').last)
+        image_data = StringIO.new(base64)
+        element.add_call 'image', image_data
+      end
   
     else 
       @document.warnings << "Unknown tag '#{element.name}'; ignoring"
